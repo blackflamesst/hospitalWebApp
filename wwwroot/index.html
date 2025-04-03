@@ -1,0 +1,286 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Запись на приём</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Запись на приём</h1>
+        <button id="login-btn"></button>
+    </div>
+
+    <div class="main">
+        <div class="section">
+            <button id="start-appointment-btn">Записаться на приём</button>
+        </div>
+
+        <div class="section" id="category-section" style="display: none;">
+            <h2>Выберите категорию врача</h2>
+            <select id="category-select">
+                <option value="">-- Выберите категорию --</option>
+            </select>
+        </div>
+
+        <div class="section" id="doctor-section" style="display: none;">
+            <h2>Выберите врача</h2>
+            <select id="doctor-select">
+                <option value="">-- Выберите врача --</option>
+            </select>
+        </div>
+
+        <div class="section" id="procedure-section" style="display: none;">
+            <h2>Выберите процедуру</h2>
+            <select id="procedure-select">
+                <option value="">-- Выберите процедуру --</option>
+            </select>
+        </div>
+
+        <div class="section" id="date-section" style="display: none;">
+            <h2>Выберите дату</h2>
+            <table id="date-table">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="section" id="time-section" style="display: none;">
+            <h2>Выберите время</h2>
+            <table id="time-table">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="error-message" class="error"></div>
+    </div>
+
+    <div class="footer">
+        <p>© 2025 Больница. Все права защищены.</p>
+    </div>
+
+    <script>
+        const startAppointmentBtn = document.getElementById('start-appointment-btn');
+        const categorySection = document.getElementById('category-section');
+        const categorySelect = document.getElementById('category-select');
+        const doctorSection = document.getElementById('doctor-section');
+        const doctorSelect = document.getElementById('doctor-select');
+        const procedureSection = document.getElementById('procedure-section');
+        const procedureSelect = document.getElementById('procedure-select');
+        const dateSection = document.getElementById('date-section');
+        const dateTable = document.getElementById('date-table').getElementsByTagName('tbody')[0];
+        const timeSection = document.getElementById('time-section');
+        const timeTable = document.getElementById('time-table').getElementsByTagName('tbody')[0];
+        const errorMessage = document.getElementById('error-message');
+        const loginBtn = document.getElementById('login-btn');
+
+        let selectedCategoryId = null;
+        let selectedDoctorId = null;
+        let selectedProcedureId = null;
+        let selectedDate = null;
+
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user) {
+            loginBtn.textContent = 'Выход';
+            loginBtn.addEventListener('click', () => {
+                localStorage.removeItem('user');
+                window.location.reload();
+            });
+        } else {
+            loginBtn.textContent = 'Войти';
+            loginBtn.addEventListener('click', () => {
+                window.location.href = '/login.html';
+            });
+        }
+
+        startAppointmentBtn.addEventListener('click', () => {
+            if (!user) {
+                errorMessage.textContent = 'Пожалуйста, войдите в систему';
+                return;
+            }
+            startAppointmentBtn.style.display = 'none';
+            categorySection.style.display = 'block';
+            loadCategories();
+        });
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('http://localhost:5267/api/categories');
+                if (!response.ok) throw new Error('Не удалось загрузить категории');
+                const categories = await response.json();
+                categorySelect.innerHTML = '<option value="">-- Выберите категорию --</option>';
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    categorySelect.appendChild(option);
+                });
+            } catch (error) {
+                errorMessage.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+
+        categorySelect.addEventListener('change', async () => {
+            selectedCategoryId = categorySelect.value;
+            if (selectedCategoryId) {
+                doctorSection.style.display = 'block';
+                try {
+                    const response = await fetch(`http://localhost:5267/api/appointments/doctors?categoryId=${selectedCategoryId}`);
+                    if (!response.ok) throw new Error('Не удалось загрузить врачей');
+                    const doctors = await response.json();
+                    doctorSelect.innerHTML = '<option value="">-- Выберите врача --</option>';
+                    doctors.forEach(doctor => {
+                        const option = document.createElement('option');
+                        option.value = doctor.id;
+                        option.textContent = doctor.name;
+                        doctorSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    errorMessage.textContent = `Ошибка: ${error.message}`;
+                }
+            } else {
+                doctorSection.style.display = 'none';
+                procedureSection.style.display = 'none';
+                dateSection.style.display = 'none';
+                timeSection.style.display = 'none';
+            }
+        });
+
+        doctorSelect.addEventListener('change', async () => {
+            selectedDoctorId = doctorSelect.value;
+            console.log('Selected Doctor ID:', selectedDoctorId);
+            if (selectedDoctorId) {
+                procedureSection.style.display = 'block';
+                try {
+                    const response = await fetch(`http://localhost:5267/api/appointments/doctors/${selectedDoctorId}/procedures`);
+                    if (!response.ok) throw new Error('Не удалось загрузить процедуры');
+                    const procedures = await response.json();
+                    procedureSelect.innerHTML = '<option value="">-- Выберите процедуру --</option>';
+                    procedures.forEach(procedure => {
+                        const option = document.createElement('option');
+                        option.value = procedure.id;
+                        option.textContent = `${procedure.type} (${procedure.price} руб.)`;
+                        procedureSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    errorMessage.textContent = `Ошибка: ${error.message}`;
+                }
+            } else {
+                procedureSection.style.display = 'none';
+                dateSection.style.display = 'none';
+                timeSection.style.display = 'none';
+            }
+        });
+
+        procedureSelect.addEventListener('change', async () => {
+            selectedProcedureId = procedureSelect.value;
+            if (selectedProcedureId) {
+                dateSection.style.display = 'block';
+                try {
+                    const response = await fetch(`http://localhost:5267/api/appointments/available-dates?doctor_id=${selectedDoctorId}`);
+                    if (!response.ok) throw new Error('Не удалось загрузить даты');
+                    const dates = await response.json();
+                    dateTable.innerHTML = '';
+                    dates.forEach(date => {
+                        const row = dateTable.insertRow();
+                        const cellDate = row.insertCell(0);
+                        const cellStatus = row.insertCell(1);
+                        cellDate.textContent = date.date;
+                        cellStatus.textContent = date.isAvailable ? 'Доступно' : 'Занято';
+                        cellStatus.className = date.isAvailable ? 'available' : 'unavailable';
+                        if (date.isAvailable) {
+                            cellStatus.onclick = () => {
+                                selectedDate = date.date;
+                                loadTimes();
+                            };
+                        }
+                    });
+                } catch (error) {
+                    errorMessage.textContent = `Ошибка: ${error.message}`;
+                }
+            } else {
+                dateSection.style.display = 'none';
+                timeSection.style.display = 'none';
+            }
+        });
+
+        async function loadTimes() {
+            timeSection.style.display = 'block';
+            try {
+                const response = await fetch(`http://localhost:5267/api/appointments/available-times?doctor_id=${selectedDoctorId}&date=${selectedDate}`);
+                if (!response.ok) throw new Error('Не удалось загрузить время');
+                const times = await response.json();
+                timeTable.innerHTML = '';
+                times.forEach(time => {
+                    const row = timeTable.insertRow();
+                    const cellTime = row.insertCell(0);
+                    const cellStatus = row.insertCell(1);
+                    cellTime.textContent = time.time;
+                    cellStatus.textContent = time.isAvailable ? 'Доступно' : 'Занято';
+                    cellStatus.className = time.isAvailable ? 'available' : 'unavailable';
+                    if (time.isAvailable) {
+                        cellStatus.onclick = () => {
+                            confirmAppointment(time.time);
+                        };
+                    }
+                });
+            } catch (error) {
+                errorMessage.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+
+        async function confirmAppointment(selectedTime) {
+            try {
+                const user = JSON.parse(localStorage.getItem('user'));
+                if (!user || !user.name) {
+                    throw new Error('Пользователь не авторизован или имя пользователя отсутствует');
+                }
+                const appointmentData = {
+                    customerName: user.name,
+                    doctor_Id: parseInt(selectedDoctorId),
+                    procedure_Id: parseInt(selectedProcedureId),
+                    appointment_Date: selectedDate,
+                    appointment_Time: selectedTime
+                };
+                console.log('Sending appointment data:', appointmentData);
+                const response = await fetch('http://localhost:5267/api/appointments/creating', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(appointmentData)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Не удалось создать запись: ${errorText}`);
+                }
+                const result = await response.json();
+                alert(`Запись успешно создана! ID записи: ${result.appointmentId}`);
+                startAppointmentBtn.style.display = 'block';
+                categorySection.style.display = 'none';
+                doctorSection.style.display = 'none';
+                procedureSection.style.display = 'none';
+                dateSection.style.display = 'none';
+                timeSection.style.display = 'none';
+                categorySelect.value = '';
+                doctorSelect.value = '';
+                procedureSelect.value = '';
+            } catch (error) {
+                errorMessage.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

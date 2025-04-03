@@ -1,35 +1,51 @@
 using Hospital.Context;
 using Microsoft.EntityFrameworkCore;
 
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddControllers();
-
-builder.Services.AddDbContext<HospitalContext>(options => options.UseMySql(
-    builder.Configuration.GetConnectionString("DefaultConnection"),
-    ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
-
-var app = builder.Build();
-
-app.UseRouting();
-app.UseEndpoints(endpoints =>
+namespace Hospital
 {
-    endpoints.MapControllers();
-});
-
-app.MapGet("/", async (HospitalContext context) =>
-{
-    var doctors = await context.Doctors
-        .OrderBy(d => d.Id)
-        .Select(d => d.Name)
-        .ToListAsync();
-
-    if (doctors == null || !doctors.Any())
+    public class Program
     {
-        return Results.Text("No doctors found.");
+        public static void Main(string[] args)
+        {
+            var builder = WebApplication.CreateBuilder(args);
+
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new TimeOnlyJsonConverter());
+                });
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", builder =>
+                {
+                    builder.AllowAnyOrigin()
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
+                });
+            });
+
+            builder.Services.AddDbContext<HospitalContext>(options => options.UseMySql(
+                builder.Configuration.GetConnectionString("DefaultConnection"),
+                ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+
+            builder.WebHost.UseUrls("http://localhost:5267");
+
+            var app = builder.Build();
+
+            app.UseStaticFiles();
+            app.UseCors("AllowAll");
+
+            app.UseRouting();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
+
+            app.MapFallbackToFile("index.html");
+
+            app.Run();
+
+        }
     }
-
-    return Results.Json(doctors);
-});
-
-app.Run();
+}
